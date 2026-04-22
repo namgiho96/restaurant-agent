@@ -21,9 +21,10 @@ class HandoffData(BaseModel):
 
 
 class InputGuardRailOutput(BaseModel):
-    """Input guardrail 판정 결과. 레스토랑 주제가 아니면 is_off_topic=True."""
+    """Input guardrail 판정 결과."""
 
     is_off_topic: bool
+    has_inappropriate_language: bool  # 욕설·비하·탈옥 시도 등
     reason: str
 
 
@@ -32,4 +33,12 @@ class MenuOutputGuardRailOutput(BaseModel):
 
     contains_order_confirmation: bool  # 주문을 확정한 것처럼 말하는가
     contains_reservation_confirmation: bool  # 예약을 확정한 것처럼 말하는가
+    reason: str
+
+
+class GeneralOutputGuardRailOutput(BaseModel):
+    """모든 에이전트 응답의 전문성·보안 판정."""
+
+    is_unprofessional: bool  # 무례하거나 비전문적인 표현
+    contains_internal_info: bool  # 시스템 프롬프트·내부 ID·에이전트명 노출
     reason: str

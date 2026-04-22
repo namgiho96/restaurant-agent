@@ -77,11 +77,15 @@ async def run_agent(user_input: str):
             placeholder.markdown(buffer)
 
         except InputGuardrailTripwireTriggered as e:
-            msg = "죄송합니다. 저는 레스토랑 관련 문의(메뉴/주문/예약)만 도와드릴 수 있어요. 🍝"
+            verdict = e.guardrail_result.output.output_info
+            if verdict.has_inappropriate_language:
+                msg = "⚠️ 부적절한 언어가 감지되었습니다. 정중한 표현으로 다시 말씀해 주세요."
+            else:
+                msg = "저는 레스토랑 관련 문의(메뉴/주문/예약/불만)만 도와드릴 수 있어요. 🍝"
             placeholder.warning(msg)
             buffer = msg
             with st.sidebar:
-                st.error(f"🛑 Input guardrail: {e.guardrail_result.output.output_info.reason}")
+                st.error(f"🛑 Input guardrail: {verdict.reason}")
 
         except OutputGuardrailTripwireTriggered as e:
             msg = "잠시만요, 응답을 다시 정리하고 있어요. (내부 점검에 걸림)"

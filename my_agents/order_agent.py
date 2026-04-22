@@ -1,5 +1,6 @@
 from agents import Agent, RunContextWrapper
 
+from guardrails import off_topic_guardrail
 from models import CustomerContext
 from tools import AgentToolUsageLoggingHooks, confirm_order, create_order
 
@@ -30,6 +31,7 @@ def dynamic_order_agent_instructions(
 order_agent = Agent(
     name="Order Agent",
     instructions=dynamic_order_agent_instructions,
+    input_guardrails=[off_topic_guardrail],
     tools=[
         create_order,
         confirm_order,

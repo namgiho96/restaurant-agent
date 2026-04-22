@@ -5,6 +5,7 @@ from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
 from guardrails import off_topic_guardrail
 from models import CustomerContext, HandoffData
+from my_agents.complaints_agent import complaints_agent
 from my_agents.menu_agent import menu_agent
 from my_agents.order_agent import order_agent
 from my_agents.reservation_agent import reservation_agent
@@ -37,6 +38,12 @@ def dynamic_triage_agent_instructions(
     - 테이블 예약/변경/취소
     - "예약하고 싶어", "토요일 7시 2명"
 
+    😤 Complaints Agent — 다음 경우 라우팅:
+    - 음식 품질, 서비스, 직원 태도에 대한 불만
+    - "별로였어", "불친절했어", "실망했어", "환불하고 싶어"
+    - 부정적 경험이 포함된 모든 피드백
+    - 반드시 먼저 공감을 표현한 뒤 핸드오프: "정말 죄송합니다. 불만 전담 상담사에게 연결해 드릴게요..."
+
     라우팅 프로세스:
     1. 고객 첫 메시지를 듣고 의도를 파악합니다.
     2. 모호하면 1~2개 명확화 질문을 합니다.
@@ -44,8 +51,8 @@ def dynamic_triage_agent_instructions(
     4. 간단한 인사/스몰토크는 직접 응대해도 됩니다.
 
     handoff 호출 시 다음 필드를 채워 넘깁니다:
-    - to_agent_name: "Menu Agent" | "Order Agent" | "Reservation Agent"
-    - intent: "menu" | "order" | "reservation"
+    - to_agent_name: "Menu Agent" | "Order Agent" | "Reservation Agent" | "Complaints Agent"
+    - intent: "menu" | "order" | "reservation" | "complaint"
     - summary: 고객 요청을 1문장으로 요약
     - reason: 왜 이 에이전트로 보냈는지
     """
@@ -60,6 +67,7 @@ def handle_handoff(
         "menu": "메뉴 전문가",
         "order": "주문 담당",
         "reservation": "예약 담당",
+        "complaint": "불만 전담 상담사",
     }
     label = label_map.get(input_data.intent, input_data.to_agent_name)
 
@@ -89,33 +97,35 @@ def make_handoff(agent):
 triage_agent = Agent(
     name="Triage Agent",
     instructions=dynamic_triage_agent_instructions,
-    # 사용자 입력이 레스토랑 주제 밖이면 즉시 중단
     input_guardrails=[off_topic_guardrail],
     handoffs=[
         make_handoff(menu_agent),
         make_handoff(order_agent),
         make_handoff(reservation_agent),
+        make_handoff(complaints_agent),
     ],
 )
 
 
-# =============================================================================
-# Cross-handoff: 전문 에이전트끼리 서로 넘길 수 있도록 연결
-# -----------------------------------------------------------------------------
-# Why: 예약 중 고객이 "메뉴도 좀 봐줘" 하면 Reservation Agent 혼자 답하기 어렵다.
-# 주제가 바뀌면 적절한 전문 에이전트로 즉시 재라우팅할 수 있도록 한다.
-# (Triage를 거치는 '복귀' 패턴도 가능하지만, 중간 턴이 늘어나 UX가 나빠짐.)
-# =============================================================================
+# Cross-handoff: 전문 에이전트끼리 직접 재라우팅 (Triage 경유 없이 UX 단축)
 
 menu_agent.handoffs = [
     make_handoff(order_agent),
     make_handoff(reservation_agent),
+    make_handoff(complaints_agent),
 ]
 order_agent.handoffs = [
     make_handoff(menu_agent),
     make_handoff(reservation_agent),
+    make_handoff(complaints_agent),
 ]
 reservation_agent.handoffs = [
     make_handoff(menu_agent),
     make_handoff(order_agent),
+    make_handoff(complaints_agent),
+]
+complaints_agent.handoffs = [
+    make_handoff(menu_agent),
+    make_handoff(order_agent),
+    make_handoff(reservation_agent),
 ]

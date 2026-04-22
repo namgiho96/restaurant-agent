@@ -222,6 +222,93 @@ def cancel_reservation(reservation_id: str) -> str:
 
 
 # =============================================================================
+# COMPLAINT TOOLS
+# =============================================================================
+
+
+@function_tool
+def offer_discount(
+    wrapper: RunContextWrapper[CustomerContext],
+    discount_percent: int,
+) -> str:
+    """고객에게 다음 방문 할인 쿠폰을 발급합니다.
+
+    Args:
+        discount_percent: 할인율 (예: 50)
+    """
+    coupon_id = f"CPN-{random.randint(10000, 99999)}"
+    return (
+        f"🎟️ 할인 쿠폰 발급 완료\n"
+        f"고객: {wrapper.context.name}님\n"
+        f"쿠폰번호: {coupon_id}\n"
+        f"혜택: 다음 방문 시 {discount_percent}% 할인\n"
+        f"유효기간: 발급일로부터 30일"
+    )
+
+
+@function_tool
+def offer_refund(order_id: str, reason: str) -> str:
+    """주문에 대한 환불을 처리합니다.
+
+    Args:
+        order_id: 환불 대상 주문번호 (예: "ORD-12345", 모르면 "UNKNOWN" 입력)
+        reason: 환불 사유
+    """
+    refund_id = f"RFD-{random.randint(10000, 99999)}"
+    return (
+        f"💳 환불 접수 완료\n"
+        f"환불번호: {refund_id}\n"
+        f"대상 주문: {order_id}\n"
+        f"사유: {reason}\n"
+        f"처리 기간: 영업일 기준 3~5일 이내"
+    )
+
+
+@function_tool
+def request_manager_callback(
+    wrapper: RunContextWrapper[CustomerContext],
+    issue_summary: str,
+) -> str:
+    """매니저가 고객에게 직접 연락하도록 콜백을 예약합니다.
+
+    Args:
+        issue_summary: 문제 요약 (1~2문장)
+    """
+    ticket_id = f"MGR-{random.randint(10000, 99999)}"
+    phone = wrapper.context.phone or "등록된 연락처 없음"
+    return (
+        f"📞 매니저 콜백 예약 완료\n"
+        f"티켓번호: {ticket_id}\n"
+        f"고객: {wrapper.context.name}님 ({phone})\n"
+        f"문제 요약: {issue_summary}\n"
+        f"예상 연락 시간: 오늘 중 또는 다음 영업일"
+    )
+
+
+@function_tool
+def escalate_complaint(
+    wrapper: RunContextWrapper[CustomerContext],
+    severity: str,
+    details: str,
+) -> str:
+    """심각한 불만을 상위 팀에 에스컬레이션합니다.
+
+    Args:
+        severity: 심각도 ("high" | "critical")
+        details: 상세 내용
+    """
+    case_id = f"ESC-{random.randint(10000, 99999)}"
+    return (
+        f"🚨 에스컬레이션 접수\n"
+        f"케이스번호: {case_id}\n"
+        f"고객: {wrapper.context.name}님\n"
+        f"심각도: {severity.upper()}\n"
+        f"내용: {details}\n"
+        f"담당 팀에 즉시 공유되었습니다. 빠른 시일 내 연락드리겠습니다."
+    )
+
+
+# =============================================================================
 # AGENT HOOKS — UI에 도구 사용/핸드오프 로그 표시
 # =============================================================================
 

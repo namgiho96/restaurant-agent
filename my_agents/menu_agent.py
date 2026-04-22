@@ -1,6 +1,6 @@
 from agents import Agent, RunContextWrapper
 
-from guardrails import menu_output_guardrail
+from guardrails import menu_output_guardrail, off_topic_guardrail
 from models import CustomerContext
 from tools import (
     AgentToolUsageLoggingHooks,
@@ -47,6 +47,7 @@ def dynamic_menu_agent_instructions(
 menu_agent = Agent(
     name="Menu Agent",
     instructions=dynamic_menu_agent_instructions,
+    input_guardrails=[off_topic_guardrail],
     tools=[
         list_menu_items,
         get_menu_details,
