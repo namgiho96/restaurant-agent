@@ -1,4 +1,6 @@
 import asyncio
+import os
+import uuid
 
 import dotenv
 
@@ -11,6 +13,15 @@ from agents import (
     Runner,
     SQLiteSession,
 )
+
+# Streamlit Cloud: st.secrets에 등록된 값을 환경변수로 승격.
+# OpenAI SDK가 os.environ["OPENAI_API_KEY"]를 읽으므로 이 브리지가 필요하다.
+try:
+    if "OPENAI_API_KEY" in st.secrets and not os.environ.get("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+except (FileNotFoundError, KeyError):
+    # 로컬 개발 환경에 secrets.toml이 없을 때 발생. .env로 충분하므로 무시.
+    pass
 
 from models import CustomerContext
 from my_agents.triage_agent import triage_agent
@@ -30,10 +41,13 @@ customer_ctx = CustomerContext(
 )
 
 
-# 세션 초기화
+# 세션 초기화 — 사용자별 고유 키로 DB 내 대화 격리
+# Streamlit Cloud에서 여러 사용자가 같은 DB를 공유해도 세션 키가 다르면 레코드가 섞이지 않는다.
+if "session_key" not in st.session_state:
+    st.session_state["session_key"] = f"restaurant-chat-{uuid.uuid4().hex[:12]}"
 if "session" not in st.session_state:
     st.session_state["session"] = SQLiteSession(
-        "restaurant-chat",
+        st.session_state["session_key"],
         "restaurant-memory.db",
     )
 if "agent" not in st.session_state:
@@ -44,14 +58,17 @@ if "messages" not in st.session_state:
 session = st.session_state["session"]
 
 
-# 이전 대화 렌더링
+# 이전 대화 렌더링 (assistant 메시지에는 당시 응답한 에이전트 이름 뱃지 표시)
 for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
+        if msg["role"] == "assistant" and msg.get("agent"):
+            st.caption(f"🤖 {msg['agent']}")
         st.markdown(msg["content"])
 
 
 async def run_agent(user_input: str):
     """현재 활성 에이전트로 사용자 입력을 실행하고 응답을 스트리밍."""
+    active_agent_name = st.session_state["agent"].name
     result = Runner.run_streamed(
         st.session_state["agent"],
         user_input,
@@ -60,6 +77,7 @@ async def run_agent(user_input: str):
     )
 
     with st.chat_message("assistant"):
+        st.caption(f"🤖 {active_agent_name}")
         placeholder = st.empty()
         buffer = ""
         try:
@@ -95,12 +113,16 @@ async def run_agent(user_input: str):
                 st.error(f"🛑 Output guardrail: {e.guardrail_result.output.output_info.reason}")
             # 역할 침범이 감지됐으니 triage로 복귀
             st.session_state["agent"] = triage_agent
-            st.session_state["messages"].append({"role": "assistant", "content": buffer})
+            st.session_state["messages"].append(
+                {"role": "assistant", "content": buffer, "agent": active_agent_name}
+            )
             return
 
     # 핸드오프가 있었다면 last_agent가 전문 에이전트로 바뀌어 다음 턴에 이어짐
     st.session_state["agent"] = result.last_agent
-    st.session_state["messages"].append({"role": "assistant", "content": buffer})
+    st.session_state["messages"].append(
+        {"role": "assistant", "content": buffer, "agent": active_agent_name}
+    )
 
 
 user_input = st.chat_input("무엇을 도와드릴까요? (예: 채식 메뉴 알려줘 / 파스타 주문할게 / 예약하고 싶어)")
@@ -119,6 +141,12 @@ with st.sidebar:
     st.divider()
     if st.button("🔄 대화 초기화"):
         asyncio.run(session.clear_session())
+        # 새 세션 키 발급 — 동일 DB 안에서도 새 대화 공간 시작
+        st.session_state["session_key"] = f"restaurant-chat-{uuid.uuid4().hex[:12]}"
+        st.session_state["session"] = SQLiteSession(
+            st.session_state["session_key"],
+            "restaurant-memory.db",
+        )
         st.session_state["agent"] = triage_agent
         st.session_state["messages"] = []
         st.rerun()
